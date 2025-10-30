@@ -30,9 +30,9 @@ usb_gamma: 160
 usb_gain: 10 #0-96
 
 #####-----工业相机参数-----#####
-camera_name: "mindvision"
+camera_name: "hikrobot"
 exposure_ms: 2
-gamma: 0.5
+gain: 16.9
 vid_pid: "f622:d13a"
 
 #####-----传统方法参数-----#####

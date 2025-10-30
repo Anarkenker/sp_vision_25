@@ -4,14 +4,11 @@
 
 #include "io/gkdcontrol/send_control.hpp"
 #include "tools/math_tools.hpp"
-#include "tools/yaml.hpp"
 
 namespace
 {
-constexpr int kDefaultQuaternionUdpPort = 11453;
-constexpr int kDefaultBulletSpeedUdpPort = 11454;
-constexpr int kDefaultSendUdpPort = 11451;
 constexpr double kAngleChangeEpsilon = 1e-5;
+const std::string kLoopbackIp = "127.0.0.1";
 }  // namespace
 
 namespace io
@@ -19,11 +16,12 @@ namespace io
 GKDControl::GKDControl(const std::string & config_path)
 : mode(GKDMode::idle),
   shoot_mode(GKDShootMode::left_shoot),
-  bullet_speed(0.0),
+  bullet_speed(23.0),
   ft_angle(0.0),
   queue_(5000)
 {
-  target_ip_ = read_yaml(config_path);
+  (void)config_path;
+  tools::logger()->info("[GKDControl] Using fixed target IP {} for local communication.", kLoopbackIp);
 
   initialize_udp_transmission();
   initialize_udp_reception();
@@ -96,51 +94,7 @@ void GKDControl::initialize_udp_reception()
 
 void GKDControl::initialize_udp_transmission()
 {
-  init_send(target_ip_);
-
-  if (send_udp_port_ != kDefaultSendUdpPort) {
-    tools::logger()->warn(
-      "[GKDControl] Config send_udp_port {} ignored; current sender uses {}.", send_udp_port_,
-      kDefaultSendUdpPort);
-  }
-}
-
-std::string GKDControl::read_yaml(const std::string & config_path)
-{
-  auto yaml = tools::load(config_path);
-
-  quaternion_udp_port_ = kDefaultQuaternionUdpPort;
-  bullet_speed_udp_port_ = kDefaultBulletSpeedUdpPort;
-  send_udp_port_ = kDefaultSendUdpPort;
-  std::string target_ip = "127.0.0.1";
-
-  if (!yaml["gkdcontrol"]) {
-    tools::logger()->warn(
-      "[GKDControl] Missing 'gkdcontrol' section in {}, fallback to defaults.", config_path);
-    return target_ip;
-  }
-
-  auto node = yaml["gkdcontrol"];
-
-  if (node["target_ip"]) target_ip = node["target_ip"].as<std::string>();
-  if (node["quaternion_udp_port"]) quaternion_udp_port_ = node["quaternion_udp_port"].as<int>();
-  if (node["bullet_speed_udp_port"]) bullet_speed_udp_port_ = node["bullet_speed_udp_port"].as<int>();
-  if (node["send_udp_port"]) send_udp_port_ = node["send_udp_port"].as<int>();
-
-  if (quaternion_udp_port_ != kDefaultQuaternionUdpPort) {
-    tools::logger()->warn(
-      "[GKDControl] Config quaternion_udp_port {} ignored; socket interface binds to {}.",
-      quaternion_udp_port_, kDefaultQuaternionUdpPort);
-  }
-
-  if (bullet_speed_udp_port_ != kDefaultBulletSpeedUdpPort) {
-    tools::logger()->warn(
-      "[GKDControl] Config bullet_speed_udp_port {} currently unused; default {} expected.",
-      bullet_speed_udp_port_, kDefaultBulletSpeedUdpPort);
-  }
-
-  return target_ip;
+  init_send(kLoopbackIp);
 }
 
 }  // namespace io
-

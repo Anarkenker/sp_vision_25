@@ -61,13 +61,8 @@ private:
 
   IO::Server_socket_interface socket_interface_;
 
-  int quaternion_udp_port_, bullet_speed_udp_port_, send_udp_port_;
-  std::string target_ip_;
-
   void initialize_udp_reception();
   void initialize_udp_transmission();
-
-  std::string read_yaml(const std::string & config_path);
 };
 
 }  // namespace io

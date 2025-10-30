@@ -2,11 +2,13 @@
 #define IO__GKDCONTROL_HPP
 
 #include <Eigen/Geometry>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <functional>
 #include <string>
 #include <vector>
+#include <string_view>
 
 #include "io/command.hpp"
 #include "io/gkdcontrol/socket_interface.hpp"
@@ -15,24 +17,26 @@
 
 namespace io
 {
-enum GKDMode
+enum class GKDMode
 {
-  idle,
+  idle = 0,
   auto_aim,
   small_buff,
   big_buff,
   outpost
 };
-const std::vector<std::string> MODES = {"idle", "auto_aim", "small_buff", "big_buff", "outpost"};
+inline constexpr std::array<std::string_view, 5> GKD_MODE_NAMES = {
+  "idle", "auto_aim", "small_buff", "big_buff", "outpost"};
 
 // 哨兵专有
-enum GKDShootMode
+enum class GKDShootMode
 {
-  left_shoot,
+  left_shoot = 0,
   right_shoot,
   both_shoot
 };
-const std::vector<std::string> SHOOTMODES = {"left_shoot", "right_shoot", "both_shoot"};
+inline constexpr std::array<std::string_view, 3> GKD_SHOOT_MODE_NAMES = {
+  "left_shoot", "right_shoot", "both_shoot"};
 
 class GKDControl
 {

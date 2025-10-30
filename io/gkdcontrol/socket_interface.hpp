@@ -42,7 +42,3 @@ namespace IO
     };
 }  // namespace IO
 #endif
-
-using SOCKET = IO::Server_socket_interface;
-
-inline IO::Server_socket_interface socket_interface;

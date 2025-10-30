@@ -71,4 +71,4 @@ private:
 
 }  // namespace io
 
-#endif  // IO__GKDCONTROL_HPP
+#endif

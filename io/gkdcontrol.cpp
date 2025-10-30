@@ -1,73 +1,37 @@
 #include "gkdcontrol.hpp"
 
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <unistd.h>
 #include <thread>
 
+#include "io/gkdcontrol/send_control.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/yaml.hpp"
+
+namespace
+{
+constexpr int kDefaultQuaternionUdpPort = 11453;
+constexpr int kDefaultBulletSpeedUdpPort = 11454;
+constexpr int kDefaultSendUdpPort = 11451;
+constexpr double kAngleChangeEpsilon = 1e-5;
+}  // namespace
 
 namespace io
 {
 GKDControl::GKDControl(const std::string & config_path)
 : mode(GKDMode::idle),
   shoot_mode(GKDShootMode::left_shoot),
-  bullet_speed(0),
+  bullet_speed(0.0),
+  ft_angle(0.0),
   queue_(5000)
 {
-  std::string ip_port_config = read_yaml(config_path);
-  
-  size_t pos1 = ip_port_config.find(':');
-  size_t pos2 = ip_port_config.find(':', pos1 + 1);
-  size_t pos3 = ip_port_config.find(':', pos2 + 1);
-  
-  target_ip_ = ip_port_config.substr(0, pos1);
-  quaternion_udp_port_ = std::stoi(ip_port_config.substr(pos1 + 1, pos2 - pos1 - 1));
-  bullet_speed_udp_port_ = std::stoi(ip_port_config.substr(pos2 + 1, pos3 - pos2 - 1));
-  send_udp_port_ = std::stoi(ip_port_config.substr(pos3 + 1));
+  target_ip_ = read_yaml(config_path);
 
-  socket_fd_ = socket(AF_INET, SOCK_DGRAM, 0);
-  if (socket_fd_ < 0) {
-    tools::logger()->error("[GKDControl] Cannot create socket");
-    throw std::runtime_error("Cannot create socket for GKDControl");
-  }
+  initialize_udp_transmission();
+  initialize_udp_reception();
 
-  std::thread receive_thread([this]() {
-    sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(quaternion_udp_port_);
-    
-    if (bind(socket_fd_, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-      tools::logger()->error("[GKDControl] Cannot bind socket");
-      return;
-    }
-    
-    char buffer[256];
-    sockaddr_in client_addr;
-    socklen_t client_len = sizeof(client_addr);
-    
-    tools::logger()->info("[GKDControl] Waiting for IMU data...");
-    
-    while (true) {
-      ssize_t n = recvfrom(socket_fd_, buffer, sizeof(buffer), MSG_WAITALL, 
-                           (sockaddr*)&client_addr, &client_len);
-      if (n > 0) {
-        callback_imu_data(buffer, n);
-      }
-    }
-  });
-  
-  receive_thread.detach();  // 分离线程，让其在后台运行
-
-  // 等待初始数据
-  tools::logger()->info("[GKDControl] Waiting for initial IMU data...");
+  tools::logger()->info("[GKDControl] Waiting for IMU samples...");
   queue_.pop(data_ahead_);
   queue_.pop(data_behind_);
-  tools::logger()->info("[GKDControl] GKDControl initialized.");
+  tools::logger()->info("[GKDControl] Ready.");
 }
 
 Eigen::Quaterniond GKDControl::imu_at(std::chrono::steady_clock::time_point timestamp)
@@ -84,84 +48,60 @@ Eigen::Quaterniond GKDControl::imu_at(std::chrono::steady_clock::time_point time
   Eigen::Quaterniond q_b = data_behind_.q.normalized();
   auto t_a = data_ahead_.timestamp;
   auto t_b = data_behind_.timestamp;
-  auto t_c = timestamp;
   std::chrono::duration<double> t_ab = t_b - t_a;
-  std::chrono::duration<double> t_ac = t_c - t_a;
+  std::chrono::duration<double> t_ac = timestamp - t_a;
 
-  // 四元数插值
-  auto k = t_ac / t_ab;
-  Eigen::Quaterniond q_c = q_a.slerp(k, q_b).normalized();
-
-  return q_c;
+  double k = t_ac / t_ab;
+  return q_a.slerp(k, q_b).normalized();
 }
 
 void GKDControl::send(Command command) const
 {
-  // 创建UDP套接字用于发送
-  int send_socket = socket(AF_INET, SOCK_DGRAM, 0);
-  if (send_socket < 0) {
-    tools::logger()->warn("[GKDControl] Cannot create send socket");
-    return;
-  }
-
-  // 准备发送数据结构
-  struct GKDCommand {
-    uint8_t header = 0xAA;
-    float yaw = 0;
-    float pitch = 0;
-    uint8_t control = 0;
-    uint8_t shoot = 0;
-    float distance = 0;
-  } cmd;
-
-  cmd.yaw = command.yaw;
-  cmd.pitch = command.pitch;
-  cmd.control = command.control ? 1 : 0;
-  cmd.shoot = command.shoot ? 1 : 0;
-  cmd.distance = command.horizon_distance;
-
-  // 设置目标地址
-  sockaddr_in dest_addr;
-  memset(&dest_addr, 0, sizeof(dest_addr));
-  dest_addr.sin_family = AF_INET;
-  dest_addr.sin_port = htons(send_udp_port_);
-  inet_pton(AF_INET, target_ip_.c_str(), &dest_addr.sin_addr);
-
-  // 发送命令
-  ssize_t sent = sendto(send_socket, &cmd, sizeof(cmd), 0, 
-                        (sockaddr*)&dest_addr, sizeof(dest_addr));
-
-  if (sent < 0) {
-    tools::logger()->warn("[GKDControl] Failed to send command via UDP");
-  }
-
-  close(send_socket);
+  send_control(command.yaw, command.pitch, command.shoot);
 }
 
-
-void GKDControl::callback_imu_data(const char* data, size_t length)
+void GKDControl::initialize_udp_reception()
 {
-  // 假设IMU数据格式为: header(1 byte) + qw(4 bytes) + qx(4 bytes) + qy(4 bytes) + qz(4 bytes)
-  if (length >= sizeof(uint8_t) + 4 * sizeof(float)) {
-    uint8_t header = *(uint8_t*)data;
-    
-    if (header == 0x01) { // 假设IMU数据的头部标识
-      float qw = *((float*)(data + 1));
-      float qx = *((float*)(data + 5));
-      float qy = *((float*)(data + 9));
-      float qz = *((float*)(data + 13));
+  std::thread(&IO::Server_socket_interface::task, &socket_interface_).detach();
 
-      // 验证四元数长度是否接近单位长度
-      float norm = qw*qw + qx*qx + qy*qy + qz*qz;
-      if (std::abs(norm - 1.0f) < 1e-2f) {
-        Eigen::Quaterniond q(qw, qx, qy, qz);
-        auto timestamp = std::chrono::steady_clock::now();
-        queue_.push({q, timestamp});
-      } else {
-        tools::logger()->warn("[GKDControl] Invalid quaternion received: ({}, {}, {}, {}), norm = {}", 
-                             qw, qx, qy, qz, norm);
+  std::thread([this]() {
+    ReceiveGimbalInfo last_pkg{};
+    bool has_last = false;
+
+    while (true) {
+      ReceiveGimbalInfo current = socket_interface_.pkg;
+
+      if (current.header == 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        continue;
       }
+
+      bool changed = !has_last ||
+                     std::abs(current.yaw - last_pkg.yaw) > kAngleChangeEpsilon ||
+                     std::abs(current.pitch - last_pkg.pitch) > kAngleChangeEpsilon;
+
+      if (changed) {
+        Eigen::Vector3d euler(current.yaw, current.pitch, 0.0);
+        Eigen::Quaterniond q(tools::rotation_matrix(euler));
+        queue_.push({q.normalized(), std::chrono::steady_clock::now()});
+
+        last_pkg = current;
+        has_last = true;
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+  }).detach();
+}
+
+void GKDControl::initialize_udp_transmission()
+{
+  init_send(target_ip_);
+
+  if (send_udp_port_ != kDefaultSendUdpPort) {
+    tools::logger()->warn(
+      "[GKDControl] Config send_udp_port {} ignored; current sender uses {}.", send_udp_port_,
+      kDefaultSendUdpPort);
   }
 }
 
@@ -169,11 +109,38 @@ std::string GKDControl::read_yaml(const std::string & config_path)
 {
   auto yaml = tools::load(config_path);
 
-  if (!yaml["gkd_udp_target"]) {
-    throw std::runtime_error("Missing 'gkd_udp_target' in YAML configuration. Expected format: 'ip:quat_port:bullet_port:send_port'");
+  quaternion_udp_port_ = kDefaultQuaternionUdpPort;
+  bullet_speed_udp_port_ = kDefaultBulletSpeedUdpPort;
+  send_udp_port_ = kDefaultSendUdpPort;
+  std::string target_ip = "127.0.0.1";
+
+  if (!yaml["gkdcontrol"]) {
+    tools::logger()->warn(
+      "[GKDControl] Missing 'gkdcontrol' section in {}, fallback to defaults.", config_path);
+    return target_ip;
   }
 
-  return yaml["gkd_udp_target"].as<std::string>();
+  auto node = yaml["gkdcontrol"];
+
+  if (node["target_ip"]) target_ip = node["target_ip"].as<std::string>();
+  if (node["quaternion_udp_port"]) quaternion_udp_port_ = node["quaternion_udp_port"].as<int>();
+  if (node["bullet_speed_udp_port"]) bullet_speed_udp_port_ = node["bullet_speed_udp_port"].as<int>();
+  if (node["send_udp_port"]) send_udp_port_ = node["send_udp_port"].as<int>();
+
+  if (quaternion_udp_port_ != kDefaultQuaternionUdpPort) {
+    tools::logger()->warn(
+      "[GKDControl] Config quaternion_udp_port {} ignored; socket interface binds to {}.",
+      quaternion_udp_port_, kDefaultQuaternionUdpPort);
+  }
+
+  if (bullet_speed_udp_port_ != kDefaultBulletSpeedUdpPort) {
+    tools::logger()->warn(
+      "[GKDControl] Config bullet_speed_udp_port {} currently unused; default {} expected.",
+      bullet_speed_udp_port_, kDefaultBulletSpeedUdpPort);
+  }
+
+  return target_ip;
 }
 
 }  // namespace io
+

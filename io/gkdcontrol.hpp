@@ -23,7 +23,7 @@ enum GKDMode
   big_buff,
   outpost
 };
-const std::vector<std::string> GKDMODES = {"idle", "auto_aim", "small_buff", "big_buff", "outpost"};
+const std::vector<std::string> MODES = {"idle", "auto_aim", "small_buff", "big_buff", "outpost"};
 
 // 哨兵专有
 enum GKDShootMode
@@ -32,7 +32,7 @@ enum GKDShootMode
   right_shoot,
   both_shoot
 };
-const std::vector<std::string> GKDSHOOTMODES = {"left_shoot", "right_shoot", "both_shoot"};
+const std::vector<std::string> SHOOTMODES = {"left_shoot", "right_shoot", "both_shoot"};
 
 class GKDControl
 {

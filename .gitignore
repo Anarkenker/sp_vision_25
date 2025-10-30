@@ -1,5 +1,6 @@
 .vscode/
 .github/
+.clangd/
 build/
 Camera/
 logs/

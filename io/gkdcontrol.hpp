@@ -14,6 +14,7 @@
 #include "io/gkdcontrol/socket_interface.hpp"
 #include "tools/logger.hpp"
 #include "tools/thread_safe_queue.hpp"
+#include "io/gkdcontrol/send_control.hpp"
 
 namespace io
 {
@@ -42,7 +43,7 @@ class GKDControl
 {
 public:
   double bullet_speed;
-  GKDMode mode;
+  ROBOT_MODE mode;
   GKDShootMode shoot_mode;
   double ft_angle;  //无人机专有
 

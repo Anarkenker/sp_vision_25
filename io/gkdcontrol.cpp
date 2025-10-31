@@ -8,7 +8,6 @@
 
 namespace
 {
-constexpr double kAngleChangeEpsilon = 1e-5;
 const std::string kLoopbackIp = "127.0.0.1";
 }  // namespace
 
@@ -65,11 +64,6 @@ void GKDControl::initialize_udp_reception()
 
   std::thread([this]() {
     constexpr double RAD2DEG = 57.29577951308232;
-    static auto last_log_time = std::chrono::steady_clock::time_point::min();
-
-    ReceiveGimbalInfo last_pkg{};
-    bool has_last = false;
-
     while (true) {
       ReceiveGimbalInfo current = socket_interface_.pkg;
 
@@ -78,29 +72,16 @@ void GKDControl::initialize_udp_reception()
         continue;
       }
 
-      bool changed = !has_last ||
-                     std::abs(current.yaw - last_pkg.yaw) > kAngleChangeEpsilon ||
-                     std::abs(current.pitch - last_pkg.pitch) > kAngleChangeEpsilon;
+      Eigen::Vector3d euler(current.yaw, current.pitch, 0.0);
+      Eigen::Quaterniond q(tools::rotation_matrix(euler));
+      queue_.push({q.normalized(), std::chrono::steady_clock::now()});
 
-      if (changed) {
-        Eigen::Vector3d euler(current.yaw, current.pitch, 0.0);
-        Eigen::Quaterniond q(tools::rotation_matrix(euler));
-        queue_.push({q.normalized(), std::chrono::steady_clock::now()});
-
-        auto now = std::chrono::steady_clock::now();
-        if (tools::delta_time(now, last_log_time) >= 0.05) {
-          const double yaw = current.yaw;
-          const double pitch = current.pitch;
-          const bool red = current.red;
-          tools::logger()->info(
-            "[GKDControl] Recv yaw {:.4f} rad ({:.2f} deg), pitch {:.4f} rad ({:.2f} deg), red: {}",
-            yaw, yaw * RAD2DEG, pitch, pitch * RAD2DEG, red ? "true" : "false");
-          last_log_time = now;
-        }
-
-        last_pkg = current;
-        has_last = true;
-      }
+      const double yaw = current.yaw;
+      const double pitch = current.pitch;
+      const bool red = current.red;
+      tools::logger()->info(
+        "[GKDControl] Recv yaw {:.4f} rad ({:.2f} deg), pitch {:.4f} rad ({:.2f} deg), red: {}",
+        yaw, yaw * RAD2DEG, pitch, pitch * RAD2DEG, red ? "true" : "false");
 
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }

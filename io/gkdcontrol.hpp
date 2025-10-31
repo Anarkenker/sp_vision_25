@@ -43,7 +43,7 @@ class GKDControl
 {
 public:
   double bullet_speed;
-  ROBOT_MODE mode;
+  GKDMode mode;
   GKDShootMode shoot_mode;
   double ft_angle;  //无人机专有
 

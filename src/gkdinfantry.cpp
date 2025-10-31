@@ -51,7 +51,7 @@ int main(int argc, char * argv[])
     camera.read(img, t);
     q = gkdcontrol.imu_at(t - 1ms);
 
-    recorder.record(img, q, t);
+    // recorder.record(img, q, t);
 
     solver.set_R_gimbal2world(q);
 

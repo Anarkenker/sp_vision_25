@@ -42,7 +42,7 @@ inline constexpr std::array<std::string_view, 3> GKD_SHOOT_MODE_NAMES = {
 class GKDControl
 {
 public:
-  double bullet_speed;
+  double bullet_speed = 23;
   GKDMode mode;
   GKDShootMode shoot_mode;
   double ft_angle;  //无人机专有

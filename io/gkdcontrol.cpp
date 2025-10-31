@@ -16,7 +16,6 @@ namespace io
 GKDControl::GKDControl(const std::string & config_path)
 : mode(GKDMode::idle),
   shoot_mode(GKDShootMode::left_shoot),
-  bullet_speed(23.0),
   ft_angle(0.0),
   queue_(5000)
 {

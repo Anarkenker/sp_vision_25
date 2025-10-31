@@ -64,6 +64,7 @@ void send_control(double yaw_set, double pitch_set, bool fire)
     pkg.yaw_set = yaw_set;
     pkg.pitch_set = pitch_set;
     pkg.fire = fire;
+    pkg.mode = ROBOT_FOLLOW_GIMBAL;
 
 
     //printf("send control\n");

@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "io/gkdcontrol/send_control.hpp"
+#include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 
 namespace
@@ -63,6 +64,9 @@ void GKDControl::initialize_udp_reception()
   std::thread(&IO::Server_socket_interface::task, &socket_interface_).detach();
 
   std::thread([this]() {
+    constexpr double RAD2DEG = 57.29577951308232;
+    static auto last_log_time = std::chrono::steady_clock::time_point::min();
+
     ReceiveGimbalInfo last_pkg{};
     bool has_last = false;
 
@@ -82,6 +86,17 @@ void GKDControl::initialize_udp_reception()
         Eigen::Vector3d euler(current.yaw, current.pitch, 0.0);
         Eigen::Quaterniond q(tools::rotation_matrix(euler));
         queue_.push({q.normalized(), std::chrono::steady_clock::now()});
+
+        auto now = std::chrono::steady_clock::now();
+        if (tools::delta_time(now, last_log_time) >= 0.05) {
+          const double yaw = current.yaw;
+          const double pitch = current.pitch;
+          const bool red = current.red;
+          tools::logger()->info(
+            "[GKDControl] Recv yaw {:.4f} rad ({:.2f} deg), pitch {:.4f} rad ({:.2f} deg), red: {}",
+            yaw, yaw * RAD2DEG, pitch, pitch * RAD2DEG, red ? "true" : "false");
+          last_log_time = now;
+        }
 
         last_pkg = current;
         has_last = true;

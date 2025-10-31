@@ -1,10 +1,14 @@
 #include "send_control.hpp"
+
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <termios.h>
 #include <stdio.h>
+#include <cerrno>
+#include <cstring>
+#include "tools/logger.hpp"
 
 // #include "data_manager/parameter_loader.h"  // 该文件不存在，注释掉
 
@@ -12,6 +16,8 @@ int64_t port_num = 11452;
 int sockfd;
 sockaddr_in serv_addr;
 sockaddr_in addr;
+
+constexpr double RAD2DEG = 57.29577951308232;
 
 enum ROBOT_MODE
 {
@@ -75,4 +81,12 @@ void send_control(double yaw_set, double pitch_set, bool fire)
     MSG_CONFIRM,
     (const struct sockaddr *)&addr,
     sizeof(addr));
+
+    if (n < 0) {
+        tools::logger()->warn("[GKDControl] Failed to send control packet: {}", std::strerror(errno));
+    } else {
+        tools::logger()->info(
+            "[GKDControl] Send yaw {:.4f} rad ({:.2f} deg), pitch {:.4f} rad ({:.2f} deg), fire {}",
+            yaw_set, yaw_set * RAD2DEG, pitch_set, pitch_set * RAD2DEG, fire ? "true" : "false");
+    }
 }

@@ -54,7 +54,7 @@ IMU型号：使用C板内置BMI088作为IMU\
 
 ### 3.2 编译方式
 1. 安装依赖项：
-   - [HikRobot SDK](https://www.hikrobotics.com/cn2/source/support/software/MVS_STD_GML_V2.1.2_231116.zip)
+   - [MindVision SDK](https://mindvision.com.cn/category/software/sdk-installation-package/)或[HikRobot SDK](https://www.hikrobotics.com/cn2/source/support/software/MVS_STD_GML_V2.1.2_231116.zip)
    - [OpenVINO](https://docs.openvino.ai/2024/get-started/install-openvino/install-openvino-archive-linux.html)
    - [Ceres](http://ceres-solver.org/installation.html)
    - 其余：
@@ -345,4 +345,5 @@ DPS = 单位时间射击窗口占比 \times 射频 \times 单发子弹伤害
 
 ## 项目成员
 王骁扬、杨佳轩、奚睿豪、俞选涛、吴圳楠、杨瑞灵、程翔宇
+
 

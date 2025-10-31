@@ -83,8 +83,10 @@ void send_control(double yaw_set, double pitch_set, bool fire)
     if (n < 0) {
         tools::logger()->warn("[GKDControl] Failed to send control packet: {}", std::strerror(errno));
     } else {
+        const float yaw_rad = pkg.yaw_set;    // Copy packed fields to avoid reference binding issues
+        const float pitch_rad = pkg.pitch_set;
         tools::logger()->info(
             "[GKDControl] Send yaw {:.4f} rad ({:.2f} deg), pitch {:.4f} rad ({:.2f} deg), fire {}",
-            pkg.yaw_set, pkg.yaw_set * RAD2DEG, pkg.pitch_set, pkg.pitch_set * RAD2DEG, pkg.fire ? "true" : "false");
+            yaw_rad, yaw_rad * RAD2DEG, pitch_rad, pitch_rad * RAD2DEG, pkg.fire ? "true" : "false");
     }
 }

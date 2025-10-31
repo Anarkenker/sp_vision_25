@@ -58,9 +58,16 @@ int main(int argc, char * argv[])
     Eigen::Vector3d ypr = tools::eulers(solver.R_gimbal2world(), 2, 1, 0);
 
     auto armors = detector.detect(img);
-    tools::logger()->info("[Infantry] YOLO detected {} armors.", armors.size());
 
     auto targets = tracker.track(armors, t);
+
+    if (!targets.empty()) {
+      const auto & target = targets.front();
+      const auto state = target.ekf_x();
+      tools::logger()->info(
+        "[Infantry] Target state -> x {:.3f} m, y {:.3f} m, z {:.3f} m, yaw {:.3f} rad",
+        state[0], state[2], state[4], state[6]);
+    }
 
     auto command = aimer.aim(targets, t, gkdcontrol.bullet_speed);
 

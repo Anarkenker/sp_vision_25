@@ -66,12 +66,10 @@ void send_control(double yaw_set, double pitch_set, bool fire)
     Vison_control pkg{};
 
     pkg.header = 0x6A;
-    // 这个或许要改一改， 哨兵变成单头哨兵了。
     pkg.yaw_set = yaw_set;
     pkg.pitch_set = pitch_set;
     pkg.fire = fire;
     pkg.mode = ROBOT_FOLLOW_GIMBAL;
-
 
     //printf("send control\n");
     auto n = sendto(
@@ -87,6 +85,6 @@ void send_control(double yaw_set, double pitch_set, bool fire)
     } else {
         tools::logger()->info(
             "[GKDControl] Send yaw {:.4f} rad ({:.2f} deg), pitch {:.4f} rad ({:.2f} deg), fire {}",
-            yaw_set, yaw_set * RAD2DEG, pitch_set, pitch_set * RAD2DEG, fire ? "true" : "false");
+            pkg.yaw_set, pkg.yaw_set * RAD2DEG, pkg.pitch_set, pkg.pitch_set * RAD2DEG, pkg.fire ? "true" : "false");
     }
 }

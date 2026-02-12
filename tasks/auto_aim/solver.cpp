@@ -47,8 +47,8 @@ Eigen::Matrix3d Solver::R_gimbal2world() const { return R_gimbal2world_; }
 
 void Solver::set_R_gimbal2world(const Eigen::Quaterniond & q)
 {
-  Eigen::Matrix3d R_imubody2imuabs = q.toRotationMatrix();
-  R_gimbal2world_ = R_gimbal2imubody_.transpose() * R_imubody2imuabs * R_gimbal2imubody_;
+  (void)q;  // 纯视觉模式：忽略 IMU，保持云台系与“世界系”一致
+  R_gimbal2world_.setIdentity();
 }
 
 //solvePnP（获得姿态）

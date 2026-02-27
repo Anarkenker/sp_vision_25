@@ -90,7 +90,7 @@ int main(int argc, char * argv[])
       {10, 40}, {154, 50, 205});
 
     tools::draw_text(
-      img, fmt::format("gimbal yaw {:.2f}", ypr[0] * 57.3, "gimbal pitch {:.2f}", ypr[1] * 57.3), {10, 70}, {255, 255, 255});
+      img, fmt::format("gimbal yaw {:.2f}, gimbal pitch {:.2f}", ypr[0] * 57.3 , ypr[1] * 57.3), {10, 70}, {255, 255, 255});
 
     if (!targets.empty()) {
       const auto & target = targets.front();

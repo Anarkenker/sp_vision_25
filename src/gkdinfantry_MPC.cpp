@@ -5,8 +5,7 @@
 
 #include "io/camera.hpp"
 #include "io/gkdcontrol.hpp"
-#include "tasks/auto_aim/aimer.hpp"
-#include "tasks/auto_aim/shooter.hpp"
+#include "tasks/auto_aim/planner/planner.hpp"
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
 #include "tasks/auto_aim/yolo.hpp"
@@ -16,7 +15,6 @@
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
 #include "tools/recorder.hpp"
-
 
 using namespace std::chrono;
 
@@ -42,8 +40,7 @@ int main(int argc, char * argv[])
   auto_aim::YOLO detector(config_path, false);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
-  auto_aim::Aimer aimer(config_path);
-  auto_aim::Shooter shooter(config_path);
+  auto_aim::Planner planner(config_path);
 
   cv::Mat img;
   Eigen::Quaterniond q;
@@ -56,23 +53,21 @@ int main(int argc, char * argv[])
     // recorder.record(img, q, t);
 
     solver.set_R_gimbal2world(q);
-
-    Eigen::Vector3d gimbal_ypr = tools::eulers(solver.R_gimbal2world(), 2, 1, 0);
-
     auto armors = detector.detect(img);
-
     auto targets = tracker.track(armors, t);
 
     if (!targets.empty()) {
       const auto & target = targets.front();
       const auto state = target.ekf_x();
       tools::logger()->info(
-        "[Infantry] Target state -> x {:.3f} m, y {:.3f} m, z {:.3f} m, yaw {:.3f} rad",
+        "[Infantry MPC] Target state -> x {:.3f} m, y {:.3f} m, z {:.3f} m, yaw {:.3f} rad",
         state[0], state[2], state[4], state[6]);
     }
 
-    auto command = aimer.aim(targets, t, gkdcontrol.bullet_speed);
-    command.shoot = shooter.shoot(command, aimer, targets, gimbal_ypr);
+    std::optional<auto_aim::Target> target =
+      targets.empty() ? std::nullopt : std::optional<auto_aim::Target>(targets.front());
+    auto plan = planner.plan(target, gkdcontrol.bullet_speed);
+    io::Command command{plan.control, plan.fire, plan.yaw, plan.pitch};
     gkdcontrol.send(command);
   }
 

@@ -38,6 +38,8 @@ add_executable(uav src/uav.cpp)
 add_executable(uav_debug src/uav_debug.cpp)
 add_executable(gkdinfantry src/gkdinfantry.cpp)
 add_executable(gkdinfantry_debug src/gkdinfantry_debug.cpp)
+add_executable(gkdinfantry_MPC src/gkdinfantry_MPC.cpp)
+add_executable(gkdinfantry_debug_MPC src/gkdinfantry_debug_MPC.cpp)
 
 target_link_libraries(standard ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
 target_link_libraries(mt_standard ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
@@ -50,6 +52,8 @@ target_link_libraries(uav ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff to
 target_link_libraries(uav_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim tools io)
 target_link_libraries(gkdinfantry ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
 target_link_libraries(gkdinfantry_debug ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
+target_link_libraries(gkdinfantry_MPC ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
+target_link_libraries(gkdinfantry_debug_MPC ${OpenCV_LIBS} fmt::fmt yaml-cpp auto_aim auto_buff tools io)
 ##################calibration################
 add_executable(capture calibration/capture.cpp)
 add_executable(calibrate_camera calibration/calibrate_camera.cpp)
@@ -58,7 +62,7 @@ add_executable(calibrate_robotworld_handeye calibration/calibrate_robotworld_han
 add_executable(split_video calibration/split_video.cpp)
 
 target_link_libraries(capture ${OpenCV_LIBS} fmt::fmt tools io)
-target_link_libraries(calibrate_camera ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
+target_link_libraries(calibrate_camera ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io)
 target_link_libraries(calibrate_handeye ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io)
 target_link_libraries(calibrate_robotworld_handeye ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
 target_link_libraries(split_video ${OpenCV_LIBS} fmt::fmt tools)

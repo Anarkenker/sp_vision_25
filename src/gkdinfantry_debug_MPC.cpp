@@ -6,8 +6,7 @@
 
 #include "io/camera.hpp"
 #include "io/gkdcontrol.hpp"
-#include "tasks/auto_aim/aimer.hpp"
-#include "tasks/auto_aim/shooter.hpp"
+#include "tasks/auto_aim/planner/planner.hpp"
 #include "tasks/auto_aim/solver.hpp"
 #include "tasks/auto_aim/tracker.hpp"
 #include "tasks/auto_aim/yolo.hpp"
@@ -16,7 +15,6 @@
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 #include "tools/recorder.hpp"
-
 
 using namespace std::chrono;
 
@@ -42,8 +40,7 @@ int main(int argc, char * argv[])
   auto_aim::YOLO detector(config_path, true);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
-  auto_aim::Aimer aimer(config_path);
-  auto_aim::Shooter shooter(config_path);
+  auto_aim::Planner planner(config_path);
 
   cv::Mat img;
   Eigen::Quaterniond q;
@@ -66,20 +63,23 @@ int main(int argc, char * argv[])
     auto tracker_start = std::chrono::steady_clock::now();
     auto targets = tracker.track(armors, t);
 
-    auto aimer_start = std::chrono::steady_clock::now();
-    auto command = aimer.aim(targets, t, gkdcontrol.bullet_speed);
+    auto planner_start = std::chrono::steady_clock::now();
+    std::optional<auto_aim::Target> target =
+      targets.empty() ? std::nullopt : std::optional<auto_aim::Target>(targets.front());
+    auto plan = planner.plan(target, gkdcontrol.bullet_speed);
+    io::Command command{plan.control, plan.fire, plan.yaw, plan.pitch};
+
     Eigen::Vector3d ypr = tools::eulers(solver.R_gimbal2world(), 2, 1, 0);
-    command.shoot = shooter.shoot(command, aimer, targets, ypr);
 
     auto finish = std::chrono::steady_clock::now();
     auto total_ms = tools::delta_time(finish, loop_start) * 1e3;
     auto fps = total_ms > 0.0 ? 1000.0 / total_ms : 0.0;
 
     tools::logger()->info(
-      "[{}] total: {:.1f}ms ({:.1f} FPS), yolo: {:.1f}ms, tracker: {:.1f}ms, aimer: {:.1f}ms",
+      "[{}] total: {:.1f}ms ({:.1f} FPS), yolo: {:.1f}ms, tracker: {:.1f}ms, planner: {:.1f}ms",
       frame_count, total_ms, fps, tools::delta_time(tracker_start, yolo_start) * 1e3,
-      tools::delta_time(aimer_start, tracker_start) * 1e3,
-      tools::delta_time(finish, aimer_start) * 1e3);
+      tools::delta_time(planner_start, tracker_start) * 1e3,
+      tools::delta_time(finish, planner_start) * 1e3);
 
     tools::draw_text(
       img,
@@ -89,38 +89,30 @@ int main(int argc, char * argv[])
       {10, 40}, {154, 50, 205});
 
     tools::draw_text(
-      img, fmt::format("gimbal yaw {:.2f}, gimbal pitch {:.2f}", ypr[0] * 57.3 , ypr[1] * 57.3), {10, 70}, {255, 255, 255});
+      img, fmt::format("gimbal yaw {:.2f}, gimbal pitch {:.2f}", ypr[0] * 57.3, ypr[1] * 57.3),
+      {10, 70}, {255, 255, 255});
 
     if (!targets.empty()) {
-      const auto & target = targets.front();
-      const auto state = target.ekf_x();
+      const auto & tracked_target = targets.front();
+      const auto state = tracked_target.ekf_x();
 
-      for (const Eigen::Vector4d & xyza : target.armor_xyza_list()) {
+      for (const Eigen::Vector4d & xyza : tracked_target.armor_xyza_list()) {
         auto image_points =
-          solver.reproject_armor(xyza.head<3>(), xyza[3], target.armor_type, target.name);
+          solver.reproject_armor(xyza.head<3>(), xyza[3], tracked_target.armor_type, tracked_target.name);
         tools::draw_points(img, image_points, {0, 255, 0});
       }
 
-      const auto aim_point = aimer.debug_aim_point;
-      if (aim_point.valid) {
-        auto aim_points = solver.reproject_armor(
-          aim_point.xyza.head<3>(), aim_point.xyza[3], target.armor_type, target.name);
-        tools::draw_points(img, aim_points, {0, 0, 255});
-      }
+      auto plan_points = solver.reproject_armor(
+        planner.debug_xyza.head<3>(), planner.debug_xyza[3], tracked_target.armor_type, tracked_target.name);
+      tools::draw_points(img, plan_points, {0, 0, 255});
 
       tools::logger()->info(
-        "[Infantry][{}] Target state -> x {:.3f} m, y {:.3f} m, z {:.3f} m, yaw {:.3f} rad",
+        "[Infantry MPC][{}] Target state -> x {:.3f} m, y {:.3f} m, z {:.3f} m, yaw {:.3f} rad",
         frame_count, state[0], state[2], state[4], state[6]);
     }
 
-    tools::logger()->info(
-      "[Infantry][{}] yolo: {:.1f}ms, tracker: {:.1f}ms, aimer: {:.1f}ms", frame_count,
-      tools::delta_time(tracker_start, yolo_start) * 1e3,
-      tools::delta_time(aimer_start, tracker_start) * 1e3,
-      tools::delta_time(finish, aimer_start) * 1e3);
-
     cv::resize(img, img, {}, 0.5, 0.5);
-    cv::imshow("gkdinfantry", img);
+    cv::imshow("gkdinfantry_mpc", img);
     cv::waitKey(1);
 
     gkdcontrol.send(command);

@@ -1,6 +1,7 @@
 #include <fmt/core.h>
 
 #include <chrono>
+#include <cmath>
 #include <opencv2/opencv.hpp>
 
 #include "io/camera.hpp"
@@ -14,7 +15,6 @@
 #include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
-#include "tools/plotter.hpp"
 #include "tools/recorder.hpp"
 
 
@@ -39,33 +39,82 @@ int main(int argc, char * argv[])
   io::GKDControl gkdcontrol(config_path);
   io::Camera camera(config_path);
 
+  auto_aim::Color enemy_color;
+
   auto_aim::YOLO detector(config_path, false);
   auto_aim::Solver solver(config_path);
-  auto_aim::Tracker tracker(config_path, solver);
+  auto_aim::Tracker tracker(config_path, solver,enemy_color);
   auto_aim::Aimer aimer(config_path);
   auto_aim::Shooter shooter(config_path);
 
   cv::Mat img;
   Eigen::Quaterniond q;
   std::chrono::steady_clock::time_point t;
+  //int frame_count = 0;
 
   while (!exiter.exit()) {
+    auto loop_start = std::chrono::steady_clock::now();
     camera.read(img, t);
+    if (img.empty()) continue;
     q = gkdcontrol.imu_at(t - 1ms);
 
+    enemy_color = gkdcontrol.color_at(t-1ms);
     // recorder.record(img, q, t);
 
     solver.set_R_gimbal2world(q);
 
-    Eigen::Vector3d gimbal_ypr = tools::eulers(solver.R_gimbal2world(), 2, 1, 0);
-
+    auto yolo_start = std::chrono::steady_clock::now();
     auto armors = detector.detect(img);
 
+    auto tracker_start = std::chrono::steady_clock::now();
     auto targets = tracker.track(armors, t);
+
+    auto aimer_start = std::chrono::steady_clock::now();
+    auto command = aimer.aim(targets, t, gkdcontrol.bullet_speed);
+
+    Eigen::Vector3d ypr = tools::eulers(solver.R_gimbal2world(), 2, 1, 0);
+    command.shoot = shooter.shoot(command, aimer, targets, ypr);
+
+    auto finish = std::chrono::steady_clock::now();
+    auto total_ms = tools::delta_time(finish, loop_start) * 1e3;
+    auto fps = total_ms > 0.0 ? 1000.0 / total_ms : 0.0;
+
+    std::string color_str = (enemy_color == auto_aim::Color::red) ? "RED" : "BLUE";
+    tools::logger()->info("Current enemy color: {}",color_str);
+
+    tools::logger()->info(
+      "total: {:.1f}ms ({:.1f} FPS), yolo: {:.1f}ms, tracker: {:.1f}ms, aimer: {:.1f}ms",
+      total_ms, fps, tools::delta_time(tracker_start, yolo_start) * 1e3,
+      tools::delta_time(aimer_start, tracker_start) * 1e3,
+      tools::delta_time(finish, aimer_start) * 1e3);
+
+    // tools::draw_text(
+    //   img,
+    //   fmt::format(
+    //     "command {}, yaw {:.2f}, pitch {:.2f}, shoot {}", command.control,
+    //     command.yaw * 57.3, command.pitch * 57.3, command.shoot),
+    //   {10, 40}, {154, 50, 205});
+
+    // tools::draw_text(
+    //   img, fmt::format("gimbal yaw {:.2f}", ypr[0] * 57.3), {10, 70}, {255, 255, 255});
 
     if (!targets.empty()) {
       const auto & target = targets.front();
       const auto state = target.ekf_x();
+
+      for (const Eigen::Vector4d & xyza : target.armor_xyza_list()) {
+        auto image_points =
+          solver.reproject_armor(xyza.head<3>(), xyza[3], target.armor_type, target.name);
+        //tools::draw_points(img, image_points, {0, 255, 0});
+      }
+
+      const auto aim_point = aimer.debug_aim_point;
+      if (aim_point.valid) {
+        auto aim_points = solver.reproject_armor(
+          aim_point.xyza.head<3>(), aim_point.xyza[3], target.armor_type, target.name);
+        //tools::draw_points(img, aim_points, {0, 0, 255});
+      }
+
       tools::logger()->info(
         "[Infantry] Target state -> x {:.3f} m, y {:.3f} m, z {:.3f} m, yaw {:.3f} rad",
         state[0], state[2], state[4], state[6]);
@@ -74,6 +123,7 @@ int main(int argc, char * argv[])
     auto command = aimer.aim(targets, t, gkdcontrol.bullet_speed);
     command.shoot = shooter.shoot(command, aimer, targets, gimbal_ypr);
     gkdcontrol.send(command);
+    //frame_count++;
   }
 
   return 0;

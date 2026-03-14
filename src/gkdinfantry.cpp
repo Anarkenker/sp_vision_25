@@ -120,16 +120,8 @@ int main(int argc, char * argv[])
         state[0], state[2], state[4], state[6]);
     }
 
-    tools::logger()->info(
-      "[Infantry] yolo: {:.1f}ms, tracker: {:.1f}ms, aimer: {:.1f}ms",
-      tools::delta_time(tracker_start, yolo_start) * 1e3,
-      tools::delta_time(aimer_start, tracker_start) * 1e3,
-      tools::delta_time(finish, aimer_start) * 1e3);
-
-    cv::resize(img, img, {}, 0.5, 0.5);
-    //cv::imshow("gkdinfantry", img);
-    cv::waitKey(1);
-
+    auto command = aimer.aim(targets, t, gkdcontrol.bullet_speed);
+    command.shoot = shooter.shoot(command, aimer, targets, gimbal_ypr);
     gkdcontrol.send(command);
     //frame_count++;
   }

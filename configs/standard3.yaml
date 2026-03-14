@@ -35,10 +35,14 @@ max_rectangular_error: 25 # degree
 min_detect_count: 1
 max_temp_lost_count: 15
 outpost_max_temp_lost_count: 75
+process_v1: 120
+process_v2: 100
+outpost_process_v1: 10
+outpost_process_v2: 0.1
 
 #####-----aimer参数-----#####
-yaw_offset: 2 # degree -2.5
-pitch_offset: 0 # degree 2
+yaw_offset: -1 # degree -2.5
+pitch_offset: -1 # degree 2
 comming_angle: 55 # degree
 leaving_angle: 20 # degree
 decision_speed: 7 # rad/s
@@ -52,7 +56,7 @@ judge_distance: 2 #距离判断阈值
 auto_fire: true # 是否由自瞄控制射击
 
 camera_name: "hikrobot"
-exposure_ms: 2.5
+exposure_ms: 2
 gain: 16.9
 vid_pid: "2bdf:0001"
 
@@ -61,13 +65,13 @@ vid_pid: "2bdf:0001"
 #  0  0  1
 R_gimbal2imubody: [1, 0, 0, 0, 1, 0, 0, 0, 1]
 
-# 重投影误差: 0.3145px
-camera_matrix: [1768.9783970591777, 0, 730.86444391371003, 0, 1764.4491036536815, 591.18424419341113, 0, 0, 1]
-distort_coeffs: [-0.12859058510214097, 0.25462974046259212, 0.00050780540845081837, -0.00069923115497245211, -0.90843470148160643]
+# 重投影误差: 0.0927px
+camera_matrix: [1780.9481867129432, 0, 747.37865917844886, 0, 1780.3988121220884, 606.52660668277179, 0, 0, 1]
+distort_coeffs: [-0.12545568772566174, 0.11705061936054625, -0.00025855083876730504, 0.00023645389886868385, 0]
 
-# 相机同理想情况的偏角: yaw-1.61 pitch-0.82 roll-0.61 degree
+
 R_camera2gimbal: [0, 0, 1, -1, 0, 0, 0, -1, 0]
-t_camera2gimbal: [0.075517325957791413, -0.06625338092767802, 0.041359710880185793]
+t_camera2gimbal: [0.075517325957791413, 0.06625338092767802, 0.041359710880185793]
 
 #####-----cboard参数-----#####
 quaternion_canid: 0x100
@@ -83,11 +87,11 @@ pitch_kp: 0
 pitch_kd: 0
 
 #####-----planner-----#####
-fire_thresh: 0.0035
+fire_thresh: 0.0015
 
-max_yaw_acc: 50
-Q_yaw: [9e6, 0]
-R_yaw: [1]
+max_yaw_acc: 0.5
+Q_yaw: [1, 1]
+R_yaw: [1e8]
 
 max_pitch_acc: 100
 Q_pitch: [9e6, 0]

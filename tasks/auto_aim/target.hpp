@@ -26,7 +26,8 @@ public:
   Target() = default;
   Target(
     const Armor & armor, std::chrono::steady_clock::time_point t, double radius, int armor_num,
-    Eigen::VectorXd P0_dig);
+    Eigen::VectorXd P0_dig, double process_v1 = 100, double process_v2 = 400,
+    double outpost_process_v1 = 10, double outpost_process_v2 = 0.1);
   Target(double x, double vyaw, double radius, double h);
 
   void predict(std::chrono::steady_clock::time_point t);
@@ -51,6 +52,8 @@ private:
   int update_count_;
 
   bool is_switch_, is_converged_;
+  double process_v1_, process_v2_;
+  double outpost_process_v1_, outpost_process_v2_;
 
   tools::ExtendedKalmanFilter ekf_;
   std::chrono::steady_clock::time_point t_;

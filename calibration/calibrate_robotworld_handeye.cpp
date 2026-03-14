@@ -35,7 +35,7 @@ Eigen::Quaterniond read_q(const std::string & q_path)
   std::ifstream q_file(q_path);
   double w, x, y, z;
   q_file >> w >> x >> y >> z;
-  return {w, x, y, z};
+  return Eigen::Quaterniond(w, x, y, z).normalized();
 }
 
 void load(
@@ -78,9 +78,17 @@ void load(
     tools::draw_text(drawing, fmt::format("pitch {:.2f}", ypr[1]), {40, 80}, {0, 0, 255});
     tools::draw_text(drawing, fmt::format("roll  {:.2f}", ypr[2]), {40, 120}, {0, 0, 255});
 
-    // 识别标定板
+    // 识别棋盘格角点
     std::vector<cv::Point2f> centers_2d;
-    auto success = cv::findCirclesGrid(img, pattern_size, centers_2d);  // 默认是对称圆点图案
+    cv::Mat gray;
+    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    auto flags = cv::CALIB_CB_ADAPTIVE_THRESH | cv::CALIB_CB_NORMALIZE_IMAGE | cv::CALIB_CB_FAST_CHECK;
+    auto success = cv::findChessboardCorners(gray, pattern_size, centers_2d, flags);
+    if (success) {
+      cv::cornerSubPix(
+        gray, centers_2d, cv::Size(11, 11), cv::Size(-1, -1),
+        cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, 0.001));
+    }
 
     // 显示识别结果
     cv::drawChessboardCorners(drawing, pattern_size, centers_2d, success);
@@ -164,12 +172,19 @@ int main(int argc, char * argv[])
     input_folder, config_path, R_gimbal2imubody_data, R_world2gimbal_list, t_world2gimbal_list,
     rvecs, tvecs);
 
-  // 手眼标定
+  // 手眼标定（默认先用SHAH，失败时回退到LI）
   cv::Mat R_gimbal2camera, t_gimbal2camera;
   cv::Mat R_world2board, t_world2board;
-  cv::calibrateRobotWorldHandEye(
-    rvecs, tvecs, R_world2gimbal_list, t_world2gimbal_list, R_world2board, t_world2board,
-    R_gimbal2camera, t_gimbal2camera);
+  try {
+    cv::calibrateRobotWorldHandEye(
+      rvecs, tvecs, R_world2gimbal_list, t_world2gimbal_list, R_world2board, t_world2board,
+      R_gimbal2camera, t_gimbal2camera, cv::CALIB_ROBOT_WORLD_HAND_EYE_SHAH);
+  } catch (const cv::Exception & e) {
+    fmt::print("SHAH方法失败: {}\n尝试LI方法...\n", e.what());
+    cv::calibrateRobotWorldHandEye(
+      rvecs, tvecs, R_world2gimbal_list, t_world2gimbal_list, R_world2board, t_world2board,
+      R_gimbal2camera, t_gimbal2camera, cv::CALIB_ROBOT_WORLD_HAND_EYE_LI);
+  }
   t_gimbal2camera /= 1e3;  // mm to m
   t_world2board /= 1e3;    // mm to m
 
